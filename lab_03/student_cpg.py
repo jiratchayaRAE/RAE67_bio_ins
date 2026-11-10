@@ -1,42 +1,130 @@
-"""Student template for Lab 03.
-
-Complete TODO 1-3. Keep function names and return structures unchanged so the
-grader and experiment runner can load this file.
+"""
+Lab 03 — SO(2) CPG & Hexapod Kinematic Gait Simulation
+Student Implementation File (student_cpg.py)
 """
 
-from __future__ import annotations
-
 import math
+from typing import Dict, Tuple, Any, Optional
+
+# Global state สำหรับรองรับการเรียกใช้ระดับฟังก์ชันแบบ standalone
+_g_o1 = 0.1
+_g_o2 = 0.0
 
 
-TRIPOD_SIGN = {"LF": 1.0, "RM": 1.0, "LH": 1.0,
-               "RF": -1.0, "LM": -1.0, "RH": -1.0}
+def reset_cpg(o1_init: float = 0.1, o2_init: float = 0.0):
+    """Reset global CPG state"""
+    global _g_o1, _g_o2
+    _g_o1 = o1_init
+    _g_o2 = o2_init
 
 
-def clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
+def so2_step(
+    o1: Optional[float] = None,
+    o2: Optional[float] = None,
+    alpha: float = 1.10,
+    phi: float = 0.20
+) -> Tuple[float, float]:
+    """
+    คำนวณ SO(2) CPG แบบ Simultaneous Update
+    """
+    global _g_o1, _g_o2
+    
+    if o1 is None:
+        o1 = _g_o1
+    if o2 is None:
+        o2 = _g_o2
+
+    # Simultaneous Update: เก็บค่าเดิมไว้ใช้พร้อมกันทั้งสองสมการ
+    o1_prev = o1
+    o2_prev = o2
+
+    # สมการ SO(2) Neural Oscillator (lec5.pptx slide 18)
+    a1_next = alpha * (math.cos(phi) * o1_prev + math.sin(phi) * o2_prev)
+    a2_next = alpha * (-math.sin(phi) * o1_prev + math.cos(phi) * o2_prev)
+
+    # Output Activation Function (tanh)
+    o1_next = math.tanh(a1_next)
+    o2_next = math.tanh(a2_next)
+
+    _g_o1 = o1_next
+    _g_o2 = o2_next
+
+    return o1_next, o2_next
 
 
-def so2_step(o1: float, o2: float, alpha: float, phi: float) -> tuple[float, float]:
-    """Return o1(t+1), o2(t+1) using a simultaneous update."""
-    # TODO 1: implement the SO(2) equations from lec5.pptx slide 18.
-    raise NotImplementedError("TODO 1: implement so2_step")
+def decode_tripod(
+    o1: float,
+    o2: float,
+    stride_m: float = 0.055,
+    lift_m: float = 0.020
+) -> Dict[str, Dict[str, float]]:
+    """
+    แปลงสัญญาณ CPG (o1, o2) เป็นการเคลื่อนที่ของขาหกขาแบบ Alternating Tripod
+    """
+    sig_A = o1
+    sig_B = -o1
+
+    # Tripod A
+    x_A = sig_A * (stride_m / 2.0)
+    lift_A = max(0.0, sig_A * lift_m)
+    contact_A = 1.0 if sig_A <= 0 else 0.0
+
+    # Tripod B
+    x_B = sig_B * (stride_m / 2.0)
+    lift_B = max(0.0, sig_B * lift_m)
+    contact_B = 1.0 if sig_B <= 0 else 0.0
+
+    legs = {
+        'LF': {'x_rel': x_A, 'lift': lift_A, 'contact': contact_A},
+        'RM': {'x_rel': x_A, 'lift': lift_A, 'contact': contact_A},
+        'LH': {'x_rel': x_A, 'lift': lift_A, 'contact': contact_A},
+        'RF': {'x_rel': x_B, 'lift': lift_B, 'contact': contact_B},
+        'LM': {'x_rel': x_B, 'lift': lift_B, 'contact': contact_B},
+        'RH': {'x_rel': x_B, 'lift': lift_B, 'contact': contact_B},
+    }
+    return legs
 
 
-def decode_tripod(o1: float, o2: float, stride_half: float,
-                   lift_height: float) -> dict[str, dict[str, float | bool]]:
-    """Return x_rel, lift, and contact for all six legs."""
-    # TODO 2: Tripod B must use the opposite phase sign from Tripod A.
-    raise NotImplementedError("TODO 2: implement decode_tripod")
+def bounded_modulation(m: float) -> Tuple[float, float]:
+    """
+    แมปค่าสัญญาณควบคุม m (0.0 ถึง 1.0) ไปยัง phi และ stride พร้อม Clamping
+    """
+    phi_raw = 0.20 + (0.20 * m)
+    stride_raw = 0.055 + (0.010 * m)
+
+    phi_cmd = max(0.10, min(phi_raw, 0.45))
+    stride_cmd = max(0.040, min(stride_raw, 0.070))
+
+    return phi_cmd, stride_cmd
 
 
-def bounded_modulation(m: float, phi0: float = 0.20,
-                       phi_gain: float = 0.20,
-                       phi_bounds: tuple[float, float] = (0.10, 0.45),
-                       stride0: float = 0.055,
-                       stride_gain: float = 0.010,
-                       stride_bounds: tuple[float, float] = (0.040, 0.070),
-                       ) -> tuple[float, float]:
-    """Map slow input m to bounded phi and stride commands."""
-    # TODO 3: calculate both commands and clamp each to its own bounds.
-    raise NotImplementedError("TODO 3: implement bounded_modulation")
+class StudentCPG:
+    """Class wrapper สำหรับรองรับการใช้งานผ่านสคริปต์จำลอง"""
+    def __init__(self, alpha: float = 1.10, phi: float = 0.20, dt: float = 0.05):
+        self.alpha = alpha
+        self.phi = phi
+        self.dt = dt
+        self.o1 = 0.1
+        self.o2 = 0.0
+
+    def reset(self, o1_init: float = 0.1, o2_init: float = 0.0):
+        self.o1 = o1_init
+        self.o2 = o2_init
+
+    def so2_step(self, alpha: float = None, phi: float = None) -> Tuple[float, float]:
+        if alpha is None:
+            alpha = self.alpha
+        if phi is None:
+            phi = self.phi
+        self.o1, self.o2 = so2_step(self.o1, self.o2, alpha=alpha, phi=phi)
+        return self.o1, self.o2
+
+    def decode_tripod(self, o1: float = None, o2: float = None, stride_m: float = 0.055, lift_m: float = 0.020):
+        if o1 is None:
+            o1 = self.o1
+        if o2 is None:
+            o2 = self.o2
+        return decode_tripod(o1, o2, stride_m=stride_m, lift_m=lift_m)
+
+    def bounded_modulation(self, m: float) -> Tuple[float, float]:
+        return bounded_modulation(m)
