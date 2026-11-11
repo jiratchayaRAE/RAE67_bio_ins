@@ -57,15 +57,22 @@ def evaluate(path: Path) -> dict:
             raise AssertionError("o2 ใหม่ต้องคำนวณจาก o1,o2 เวลาเดิม")
 
     def tripod_decoder():
-        state = module.decode_tripod(0.4, 0.6, 0.05, 0.03)
-        if set(state) != {"LF", "RM", "LH", "RF", "LM", "RH"}:
-            raise AssertionError("ชื่อขาไม่ครบหกขา")
-        if any(state[x]["contact"] for x in ("LF", "RM", "LH")):
-            raise AssertionError("เมื่อ o2>0 Tripod A ต้องเป็น swing")
-        if not all(state[x]["contact"] for x in ("RF", "LM", "RH")):
-            raise AssertionError("เมื่อ o2>0 Tripod B ต้องเป็น stance")
-        if not all(state[x]["lift"] > 0 for x in ("LF", "RM", "LH")):
-            raise AssertionError("Tripod A ต้องมี lift เป็นบวก")
+        signs = {
+            "LF": 1.0, "RM": 1.0, "LH": 1.0,
+            "RF": -1.0, "LM": -1.0, "RH": -1.0,
+        }
+        for o1, o2 in ((0.4, 0.6), (0.4, -0.6), (-0.4, 0.6), (-0.4, -0.6)):
+            state = module.decode_tripod(o1, o2, 0.05, 0.03)
+            if set(state) != set(signs):
+                raise AssertionError("all six tripod legs must be returned")
+            for leg, sign in signs.items():
+                if not close(state[leg]["x_rel"], sign * o1 * 0.025):
+                    raise AssertionError(f"{leg} x_rel must be decoded from o1")
+                if not close(state[leg]["lift"], max(0.0, sign * o2 * 0.03)):
+                    raise AssertionError(f"{leg} lift must be decoded from o2")
+                expected_contact = 1.0 if sign * o2 <= 0.0 else 0.0
+                if not close(state[leg]["contact"], expected_contact):
+                    raise AssertionError(f"{leg} contact phase must be decoded from o2")
 
     def bounded_mapping():
         normal = module.bounded_modulation(1.0)

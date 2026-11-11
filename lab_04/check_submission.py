@@ -21,6 +21,12 @@ def state(h,s,p,c,b,expected):
 case("receptor normalization",lambda:eq(m.receptor(.2,.1,.5),.25))
 case("receptor lower clamp",lambda:eq(m.receptor(-.1),0))
 case("receptor upper clamp",lambda:eq(m.receptor(2),1))
+def nonfinite_range():
+    for lower, upper in [(float("nan"), 1.0), (0.0, float("inf")), (float("-inf"), 1.0)]:
+        try: m.receptor(.2, lower, upper)
+        except ValueError: continue
+        raise AssertionError("expected ValueError for nonfinite receptor bounds")
+case("nonfinite receptor bounds",nonfinite_range)
 def invalid_range():
     try: m.receptor(.2,.5,.5)
     except ValueError: return

@@ -3,9 +3,10 @@ import math
 
 def receptor(h, h_min=0.0, h_max=1.0):
     """Normalize then clamp to [0,1]. Reject nonfinite values or invalid range."""
-    # TODO 1: implement using the equation in the worksheet.
     if not math.isfinite(h):
         raise ValueError(f"Hormone concentration h must be finite, got {h}")
+    if not math.isfinite(h_min) or not math.isfinite(h_max):
+        raise ValueError(f"Receptor bounds must be finite, got h_min={h_min}, h_max={h_max}")
     if h_max <= h_min:
         raise ValueError(f"Invalid range: h_max ({h_max}) <= h_min ({h_min})")
     
@@ -21,7 +22,6 @@ def step(h, stimulus, dt, prod, clear, bind):
     for all rates; update once, clamp h, read NEW receptor, fault=0.
     dt and rates have already been validated by the runner.
     """
-    # TODO 2: implement the proposed course model, without updating h mid-step.
     # 1. ตรวจสอบ Stimulus (Invalid handling)
     if (not math.isfinite(stimulus)) or (stimulus < 0.0) or (stimulus > 1.0):
         return {

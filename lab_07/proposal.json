@@ -1,22 +1,41 @@
 {
-  "question": "TODO measurable research question",
-  "hypothesis": "TODO direction and boundary",
-  "biological_inspiration_source": "TODO source and exact mechanism",
-  "AHM_equation": "TODO source equation and at least one hormone",
-  "SO2_CPG_equation": "TODO Dr. Poramate SO(2) CPG notation",
-  "integration_description": "TODO AHM-CPG or AHM-emotion path",
-  "independent_variable": "TODO one planned factor",
-  "conditions": [{"name":"C0", "baseline":true, "change":"TODO baseline", "repeats":3}, {"name":"C1", "baseline":false, "change":"TODO one change", "repeats":3}],
-  "metrics": [{"name":"TODO metric1", "unit":"TODO", "measurement":"TODO measured boundary", "missing_rule":"TODO"}, {"name":"TODO metric2", "unit":"TODO", "measurement":"TODO measured boundary", "missing_rule":"TODO"}],
-  "controls": ["TODO policy", "TODO stimuli", "TODO hardware/configuration"],
-  "parameters": [{"name":"TODO", "value":null, "unit":"TODO", "provenance":"TODO source or proposed course model"}],
-  "simulation_plan":"TODO graph/clock/traces",
-  "real_robot_plan":"TODO sensors/mapping/calibration/actuator measurement",
-  "clock_correlation_plan":"TODO source ID/clock sync/error bound/log wrapper",
-  "safety_stop_plan":"TODO stop condition and operator",
-  "order_counterbalancing":"TODO C0/C1 order across repeats",
-  "paired_seed_or_participant_plan":"TODO paired assignment and consent handling",
-  "expected_input_ids_before_run":"TODO expected response denominator",
+  "question": "Under the same interaction inputs, does routing normalized stimulus through the proposed artificial hormone model reduce SO(2) phase-command variation compared with direct stimulus mapping, and what onset-latency cost is observed?",
+  "hypothesis": "Across three paired simulation repeats and, only after hardware validation and approval, three paired robot blocks, the AHM condition will have lower phase-command total variation (rad) than direct mapping, but a longer median input-to-applied-command onset latency (s). This prediction applies to the scheduled input profile and does not imply safer or more stable physical motion.",
+  "biological_inspiration_source": "The course model is inspired by the hormone production, removal, and receptor-response architecture described in Ngamkajornwiwat et al. (2020), Bio-Inspired Adaptive Locomotion Control System for Online Adaptation of a Walking Robot on Complex Terrains, IEEE Access 8, 91587-91602, DOI 10.1109/ACCESS.2020.2992794. The course runner is a proposed model, not a reproduction of that paper's MNLC or robot experiment.",
+  "AHM_equation": "For one normalized hormone H: R_k=clamp((H_k-H_min)/(H_max-H_min),0,1); P_k=k_prod*S_k; C_k=k_clear*H_k; B_k=k_bind*R_k; H_(k+1)=clamp(H_k+dt*(P_k-C_k-B_k),0,1). H is the course model's artificial hormone concentration and R is its receptor response.",
+  "SO2_CPG_equation": "a1_(k+1)=alpha*(cos(phi_k)*o1_k+sin(phi_k)*o2_k); a2_(k+1)=alpha*(-sin(phi_k)*o1_k+cos(phi_k)*o2_k); o1_(k+1)=tanh(a1_(k+1)); o2_(k+1)=tanh(a2_(k+1)). Both new outputs use the old pair. The proposed joint decoder maps a bounded, scaled oscillator output to the lamp's calibrated nod angle in radians.",
+  "integration_description": "The button/touch/approach input is normalized to S in [0,1]. Direct condition uses R_used=S_k. AHM condition updates H from the old H and old receptor response, then uses the resulting bounded R for the next command interval. R maps through bounded phi/stride commands to the SO(2) CPG; a calibrated decoder maps its output to the semantic nod joint. The existing seven-topic ROS interface carries interaction, emotion, servo, and RGB outputs; adding timestamps/IDs requires a versioned sidecar or message-contract change.",
+  "independent_variable": "Command-generation path: direct normalized stimulus versus the one-hormone Euler AHM state followed by the same bounded SO(2) CPG and decoder.",
+  "conditions": [
+    {"name":"B1_direct", "baseline":true, "change":"Direct mapping R_used=S_k; no hormone state; all CPG, decoder, input schedule, bounds, and output scheduling match B2.", "repeats":3},
+    {"name":"B2_ahm", "baseline":false, "change":"Use the proposed one-hormone state with k_prod=0.8 normalized-H/s, k_clear=0.6 s^-1, and k_bind=0.2 normalized-H/s per unit R; all other settings match B1.", "repeats":3}
+  ],
+  "metrics": [
+    {"name":"Phase-command total variation", "unit":"rad", "measurement":"Sum abs(phi[k+1]-phi[k]) over applied command intervals in the fixed 22 s offline run; for hardware, compute over valid applied-command samples only and report the sample count.", "missing_rule":"Report N/A if fewer than two valid applied-command samples; never impute missing commands as zero."},
+    {"name":"Input-to-applied-command onset latency", "unit":"s", "measurement":"For each preregistered input ID, subtract source monotonic timestamp from the first actual-applied command timestamp associated with that input; report median and individual latencies.", "missing_rule":"Mark censored if no associated applied command occurs before the trial deadline; exclude censored cases from the median and report their count."},
+    {"name":"Maximum phase-command step", "unit":"rad/step", "measurement":"Maximum abs(phi[k+1]-phi[k]) over consecutive valid applied-command intervals; report dt and valid interval count.", "missing_rule":"Report N/A unless at least two consecutive valid applied-command samples exist."}
+  ],
+  "controls": [
+    "Use the same transition policy, input IDs, stimulus schedule, and event priority in both conditions.",
+    "Keep dt=0.02 s, 22 s offline duration, initial hormone/CPG state, oscillator parameters, decoder, command bounds, slew limits, and scheduler delay identical; only the command-generation path changes.",
+    "Use the same calibrated lamp, sensor placement, ROS QoS, operator, test area, and measurement procedure for each paired hardware block; log any deviation before analysis."
+  ],
+  "parameters": [
+    {"name":"time step","value":0.02,"unit":"s","provenance":"Lab 07 proposed course model default"},
+    {"name":"offline duration","value":22,"unit":"s","provenance":"Lab 07 proposed course model protocol"},
+    {"name":"initial hormone","value":0,"unit":"normalized H","provenance":"Lab 04/05 course model initial state"},
+    {"name":"production rate","value":0.8,"unit":"normalized H/s","provenance":"Lab 05 B2 proposed course model"},
+    {"name":"clearance rate","value":0.6,"unit":"s^-1","provenance":"Lab 05 B2 proposed course model"},
+    {"name":"binding rate","value":0.2,"unit":"normalized H/s per unit R","provenance":"Lab 05 B2 proposed course model"},
+    {"name":"phase command bounds","value":"[0.10, 0.45]","unit":"rad","provenance":"Lab 04/05 proposed course mapping; hardware limits require separate calibration"}
+  ],
+  "simulation_plan":"Run B1 and B2 offline for three paired repeats with seeds 41, 42, and 43 and identical preregistered source inputs. Preserve input_trace.csv, events.csv, command_trace.csv, metrics.json, config.json, and manifest.json for each run. Compute the three metrics from actual applied-command records and report missing/censored denominators; do not describe offline timing as ROS/DDS or physical latency.",
+  "real_robot_plan":"Proceed only if the lamp, calibrated actuators, independent emergency stop, and approved risk assessment are available. First test each semantic joint at low speed with no participant present; verify radian direction, hard/software bounds, slew, watchdog, and stop behavior. Then conduct three paired B1/B2 blocks using the same scripted input IDs and calibrated sensor setup, with an operator supervising a clear test area. Measure actual command application and physical nod onset with a synchronized independent logger/video marker; do not infer physical motion from a ROS publish. If no validated robot is available, mark this phase not run and do not claim the proposal's real-robot requirement is completed.",
+  "clock_correlation_plan":"Use a monotonic acquisition timestamp and stable input ID at the source, monotonic receipt and decision timestamps in the ROS adapter, and actual-apply plus independent motion-onset timestamps in the hardware logger. Record host clock offset and synchronization uncertainty before and after each block; report the maximum measured error bound. Bool/String topics have no source timestamp or ID, so retain these fields in a versioned local sidecar and do not claim end-to-end latency if correlation uncertainty exceeds the observed latency.",
+  "safety_stop_plan":"A trained operator remains at the independent emergency stop. Before participant trials, establish calibrated joint limits, current/force limits, low-speed limits, watchdog timeout, and a clear exclusion zone. Stop immediately on unexpected motion, stale/invalid input, loss of communications, limit/current violation, participant request, or operator concern; command neutral only if the independently tested controller confirms that action is safe. Resume only after the fault is identified and the setup is rechecked.",
+  "order_counterbalancing":"Use paired blocks with B1-first for seed 41, B2-first for seed 42, and a pre-generated randomized order for seed 43. For human-participant use, counterbalance condition order across participants and retain the assigned order in the manifest.",
+  "paired_seed_or_participant_plan":"Offline: pair B1 and B2 by identical seeds 41, 42, and 43 and identical source traces. Hardware: use the same scripted input sequence within each pair; participant testing requires prior institutional ethics approval, informed consent, voluntary withdrawal, and no collection of identifying data in the analysis dataset.",
+  "expected_input_ids_before_run":"Preregister button_bounce_01 at 1.00 s, touch_01 at 3.00 s, approach_01 at 5.00 s, clear_01 at 6.40 s, near_touch_01 at 7.00 s, clear_02 at 9.00 s, invalid_distance_01 at 11.00 s, stale_touch_01 at 12.00 s, and button_02 at 18.00 s. Use this same complete set for both conditions; report every missing/censored ID.",
   "human_scenario_duration_s":600,
-  "timeline":"TODO implementation/calibration/trials/analysis dates"
+  "timeline":"Stage 1: confirm the offline config, freeze the policy and proposal, and run paired simulation seeds 41-43. Stage 2: if hardware and approval are available, calibrate and validate stops without participants. Stage 3: conduct three paired, counterbalanced robot blocks and a 600 s human-interaction scenario only after required institutional approval and consent. Stage 4: verify manifests/raw traces, calculate prespecified metrics with missingness, compare against the hypothesis, and submit limitations and reproducibility details. Record actual calendar dates in the run manifest before execution."
 }

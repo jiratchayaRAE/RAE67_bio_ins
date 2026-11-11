@@ -86,9 +86,6 @@ class StudentController:
         """คืนค่า command ปลอดภัยกรณี invalid sample"""
         return 0.0
 
-    # ==========================================
-    # TODO 1: Low-Pass Filter (Exponential Moving Average)
-    # ==========================================
     def update_filter(self, raw_distance: float, alpha: float = None) -> float:
         """
         คำนวณ First-Order Low-Pass Filter (EMA)
@@ -107,9 +104,6 @@ class StudentController:
 
         return self.filtered_distance
 
-    # ==========================================
-    # TODO 2: Single Threshold Classifier (C1)
-    # ==========================================
     def classify_single_threshold(self, distance: float, threshold: float = None) -> str:
         """
         จำแนก state ด้วย Single Threshold T = 0.35 m
@@ -132,9 +126,6 @@ class StudentController:
         """Alias method สำหรับ Adapter ใน lab02.py"""
         return self.classify_single_threshold(distance_m)
 
-    # ==========================================
-    # TODO 3: Hysteresis Threshold Classifier (C2)
-    # ==========================================
     def classify_hysteresis(self, distance: float, t_near: float = None, t_far: float = None) -> str:
         """
         จำแนก state ด้วย Hysteresis Threshold
@@ -159,9 +150,6 @@ class StudentController:
         """Alias method สำหรับ Adapter ใน lab02.py"""
         return self.classify_hysteresis(distance_m)
 
-    # ==========================================
-    # TODO 4: Proportional Control with Clamping (C3)
-    # ==========================================
     def compute_proportional_command(
         self,
         distance: float,

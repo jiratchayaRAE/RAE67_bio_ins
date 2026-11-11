@@ -61,18 +61,18 @@ def decode_tripod(
     """
     แปลงสัญญาณ CPG (o1, o2) เป็นการเคลื่อนที่ของขาหกขาแบบ Alternating Tripod
     """
-    sig_A = o1
-    sig_B = -o1
+    sign_A = 1.0
+    sign_B = -1.0
 
     # Tripod A
-    x_A = sig_A * (stride_m / 2.0)
-    lift_A = max(0.0, sig_A * lift_m)
-    contact_A = 1.0 if sig_A <= 0 else 0.0
+    x_A = sign_A * o1 * (stride_m / 2.0)
+    lift_A = max(0.0, sign_A * o2 * lift_m)
+    contact_A = 1.0 if sign_A * o2 <= 0 else 0.0
 
     # Tripod B
-    x_B = sig_B * (stride_m / 2.0)
-    lift_B = max(0.0, sig_B * lift_m)
-    contact_B = 1.0 if sig_B <= 0 else 0.0
+    x_B = sign_B * o1 * (stride_m / 2.0)
+    lift_B = max(0.0, sign_B * o2 * lift_m)
+    contact_B = 1.0 if sign_B * o2 <= 0 else 0.0
 
     legs = {
         'LF': {'x_rel': x_A, 'lift': lift_A, 'contact': contact_A},
